@@ -27,7 +27,7 @@ from PyQt5.QtGui import (
 )
 
 # ── CONFIG ────────────────────────────────────────────────────────────────────
-API_BASE = "https://your-passion-app.vercel.app"   # ← change this
+API_BASE = "https://passionext.vercel.app/"   # ← change this
 # ─────────────────────────────────────────────────────────────────────────────
 
 

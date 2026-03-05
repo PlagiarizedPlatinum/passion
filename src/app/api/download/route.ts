@@ -17,7 +17,15 @@ export async function POST(req: NextRequest) {
   }
 
   let body: { key?: string }
-  try { body = await req.json() } catch {
+  try {
+    const contentType = req.headers.get('content-type') ?? ''
+    if (contentType.includes('application/json')) {
+      body = await req.json()
+    } else {
+      const form = await req.formData()
+      body = { key: form.get('key')?.toString() }
+    }
+  } catch {
     return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
   }
 

@@ -1,9 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
 import sql from '@/lib/db'
+import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3'
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 
 // Rate limit: 5 attempts per IP per 10 min
 const attempts = new Map<string, { count: number; reset: number }>()
+
+const r2 = new S3Client({
+  region: 'auto',
+  endpoint: `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+  credentials: {
+    accessKeyId:     process.env.R2_ACCESS_KEY_ID!,
+    secretAccessKey: process.env.R2_SECRET_ACCESS_KEY!,
+  },
+})
 
 export async function POST(req: NextRequest) {
   const ip  = req.headers.get('x-forwarded-for')?.split(',')[0] ?? 'unknown'
@@ -54,21 +65,20 @@ export async function POST(req: NextRequest) {
   if (match.expires_at && new Date(match.expires_at) < new Date())
     return NextResponse.json({ error: 'This key has expired.' }, { status: 403 })
 
-  // Max uses check (don't count downloads against uses — just validate)
   attempts.delete(ip)
-
-  // Fetch the download URL from DB — never sent to client directly, we redirect server-side
-  const setting = await sql`SELECT value FROM app_settings WHERE key = 'download_url' LIMIT 1`
-  const downloadUrl = setting[0]?.value
-
-  if (!downloadUrl)
-    return NextResponse.json({ error: 'Download not configured yet. Contact admin.' }, { status: 503 })
 
   // Log the download
   await sql`
     INSERT INTO key_logs (key_id, key_value, hwid, ip, success, reason)
     VALUES (${match.id}, ${key.trim()}, NULL, ${ip}, true, 'download')`
 
-  // Return a server-side redirect — the real URL is never in the JS bundle or response body
-  return NextResponse.redirect(downloadUrl, { status: 302 })
+  // Generate a presigned URL — expires in 60 seconds
+  const command = new GetObjectCommand({
+    Bucket: process.env.R2_BUCKET_NAME!,
+    Key:    process.env.R2_FILE_KEY!,
+  })
+
+  const presignedUrl = await getSignedUrl(r2, command, { expiresIn: 60 })
+
+  return NextResponse.redirect(presignedUrl, { status: 302 })
 }

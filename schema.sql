@@ -1,13 +1,5 @@
 -- Run this once in your Neon SQL editor to set up the database
 
--- Admin users (only 2, manually inserted)
-CREATE TABLE IF NOT EXISTS admins (
-  id         SERIAL PRIMARY KEY,
-  username   TEXT UNIQUE NOT NULL,
-  password   TEXT NOT NULL,  -- bcrypt hash
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
 -- License keys
 CREATE TABLE IF NOT EXISTS license_keys (
   id          SERIAL PRIMARY KEY,
@@ -39,14 +31,17 @@ CREATE TABLE IF NOT EXISTS key_logs (
 CREATE INDEX IF NOT EXISTS idx_keys_value  ON license_keys(key_value);
 CREATE INDEX IF NOT EXISTS idx_logs_key_id ON key_logs(key_id);
 
--- ============================================================
--- INSERT YOUR 2 ADMIN USERS (replace hashes with real bcrypt)
--- Generate hashes at: https://bcrypt-generator.com (rounds=12)
--- Or run: node -e "const b=require('bcryptjs');console.log(b.hashSync('yourpassword',12))"
--- ============================================================
+-- Admin credentials are stored in environment variables (ADMIN1_USERNAME, ADMIN1_PASSWORD, etc.)
+-- No DB table needed for admins.
 
--- Example (DELETE these and insert real hashes):
--- INSERT INTO admins (username, password) VALUES
---   ('admin1', '$2a$12$REPLACE_WITH_REAL_HASH'),
---   ('admin2', '$2a$12$REPLACE_WITH_REAL_HASH')
--- ON CONFLICT DO NOTHING;
+-- App settings (key/value store for admin-configurable values)
+CREATE TABLE IF NOT EXISTS app_settings (
+  key        TEXT PRIMARY KEY,
+  value      TEXT NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Seed default download URL (update this via the dashboard)
+INSERT INTO app_settings (key, value)
+VALUES ('download_url', 'https://github.com/YOUR_USERNAME/YOUR_REPO/releases/download/latest/passion.exe')
+ON CONFLICT (key) DO NOTHING;

@@ -8,23 +8,38 @@ export default function DashboardSettingsPage() {
   const [loading, setLoad]  = useState(true)
 
   useEffect(() => {
-    fetch('/api/settings').then(r => r.json()).then(d => {
-      setDownloadUrl(d.download_url ?? '')
-      setLoad(false)
-    })
+    fetch('/api/settings')
+      .then(r => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`)
+        return r.json()
+      })
+      .then(d => {
+        setDownloadUrl(d.download_url ?? '')
+      })
+      .catch(err => {
+        console.error('Failed to load settings:', err)
+      })
+      .finally(() => {
+        setLoad(false)
+      })
   }, [])
 
   async function save() {
     setSaving(true)
     setSaved(false)
-    await fetch('/api/settings', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ key: 'download_url', value: downloadUrl }),
-    })
-    setSaving(false)
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2500)
+    try {
+      await fetch('/api/settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: 'download_url', value: downloadUrl }),
+      })
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2500)
+    } catch (err) {
+      console.error('Failed to save settings:', err)
+    } finally {
+      setSaving(false)
+    }
   }
 
   const inputSt = {

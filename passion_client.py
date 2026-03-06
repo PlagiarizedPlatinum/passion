@@ -11,7 +11,7 @@ from PyQt5.QtWidgets import (
     QApplication, QWidget, QLabel, QLineEdit, QPushButton,
     QVBoxLayout, QHBoxLayout, QStackedWidget, QFrame,
     QGraphicsDropShadowEffect, QSizePolicy, QScrollArea,
-    QCheckBox, QSpacerItem, QAbstractScrollArea
+    QCheckBox, QSpacerItem, QAbstractScrollArea, QSlider
 )
 from PyQt5.QtCore import Qt, QThread, pyqtSignal, QPoint, QTimer, QRect, QRectF, QByteArray
 from PyQt5.QtGui import (
@@ -562,7 +562,7 @@ class NavItem(QWidget):
 # ── Sidebar ────────────────────────────────────────────────────────────────────
 class Sidebar(QWidget):
     nav_changed = pyqtSignal(int)
-    NAV = ["Visual", "Movement", "Overpowered", "Skins", "Lua", "Settings"]
+    NAV = ["Visual", "Aimbot", "Player", "Misc", "Settings"]
 
     def __init__(self, key_info: dict, parent=None):
         super().__init__(parent)
@@ -773,6 +773,151 @@ def toggle_row(text: str, default=False) -> QWidget:
     return w
 
 
+SLIDER_SS = f"""
+QSlider::groove:horizontal {{
+    height: 4px;
+    background: {C['input_bg']};
+    border-radius: 2px;
+    border: 1px solid {C['input_bdr']};
+}}
+QSlider::handle:horizontal {{
+    background: {C['red']};
+    border: none;
+    width: 14px;
+    height: 14px;
+    margin: -5px 0;
+    border-radius: 7px;
+}}
+QSlider::sub-page:horizontal {{
+    background: {C['red']};
+    border-radius: 2px;
+    opacity: 0.7;
+}}
+QSlider::handle:horizontal:hover {{
+    background: #e83433;
+}}
+"""
+
+
+def slider_row(text: str, min_val: int, max_val: int, default: int,
+               suffix: str = "") -> QWidget:
+    """Toggle + label + slider that reveals when the checkbox is ticked."""
+    container = QWidget()
+    container.setStyleSheet("background:transparent;")
+    vlay = QVBoxLayout(container)
+    vlay.setContentsMargins(0, 4, 0, 4)
+    vlay.setSpacing(4)
+
+    # ── top row: label + value readout + checkbox ──
+    top = QHBoxLayout()
+    top.setContentsMargins(0, 0, 0, 0)
+    lbl_w = QLabel(text)
+    lbl_w.setFont(mkfont(13))
+    lbl_w.setStyleSheet(f"color:{C['sub']}; background:transparent; border:none;")
+    top.addWidget(lbl_w)
+    top.addStretch()
+
+    val_lbl = QLabel(f"{default}{suffix}")
+    val_lbl.setFont(mkfont(11))
+    val_lbl.setStyleSheet(f"color:{C['muted']}; background:transparent; border:none;")
+    val_lbl.setFixedWidth(46)
+    val_lbl.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+    top.addWidget(val_lbl)
+    top.addSpacing(8)
+
+    cb = QCheckBox()
+    cb.setStyleSheet(f"""
+        QCheckBox::indicator {{
+            width: 17px; height: 17px;
+            border-radius: 4px;
+            border: 1px solid {C['input_bdr']};
+            background: {C['input_bg']};
+        }}
+        QCheckBox::indicator:checked {{
+            background: {C['red']};
+            border: 1px solid {C['red']};
+        }}
+        QCheckBox::indicator:hover {{ border: 1px solid #5a4f52; }}
+    """)
+    top.addWidget(cb)
+
+    top_w = QWidget()
+    top_w.setStyleSheet("background:transparent;")
+    top_w.setLayout(top)
+    vlay.addWidget(top_w)
+
+    # ── slider row (hidden until enabled) ──
+    slider = QSlider(Qt.Horizontal)
+    slider.setMinimum(min_val)
+    slider.setMaximum(max_val)
+    slider.setValue(default)
+    slider.setFixedHeight(20)
+    slider.setStyleSheet(SLIDER_SS)
+    slider.setVisible(False)
+    vlay.addWidget(slider)
+
+    def on_toggle(state):
+        slider.setVisible(bool(state))
+
+    def on_slide(v):
+        val_lbl.setText(f"{v}{suffix}")
+
+    cb.stateChanged.connect(on_toggle)
+    slider.valueChanged.connect(on_slide)
+
+    return container
+
+
+def textbox_row(text: str, placeholder: str = "") -> QWidget:
+    """Toggle + label + text input that reveals when the checkbox is ticked."""
+    container = QWidget()
+    container.setStyleSheet("background:transparent;")
+    vlay = QVBoxLayout(container)
+    vlay.setContentsMargins(0, 4, 0, 4)
+    vlay.setSpacing(4)
+
+    top = QHBoxLayout()
+    top.setContentsMargins(0, 0, 0, 0)
+    lbl_w = QLabel(text)
+    lbl_w.setFont(mkfont(13))
+    lbl_w.setStyleSheet(f"color:{C['sub']}; background:transparent; border:none;")
+    top.addWidget(lbl_w)
+    top.addStretch()
+
+    cb = QCheckBox()
+    cb.setStyleSheet(f"""
+        QCheckBox::indicator {{
+            width: 17px; height: 17px;
+            border-radius: 4px;
+            border: 1px solid {C['input_bdr']};
+            background: {C['input_bg']};
+        }}
+        QCheckBox::indicator:checked {{
+            background: {C['red']};
+            border: 1px solid {C['red']};
+        }}
+        QCheckBox::indicator:hover {{ border: 1px solid #5a4f52; }}
+    """)
+    top.addWidget(cb)
+
+    top_w = QWidget()
+    top_w.setStyleSheet("background:transparent;")
+    top_w.setLayout(top)
+    vlay.addWidget(top_w)
+
+    inp = QLineEdit()
+    inp.setPlaceholderText(placeholder)
+    inp.setFixedHeight(34)
+    inp.setFont(mkfont(12))
+    inp.setStyleSheet(INPUT_SS)
+    inp.setVisible(False)
+    vlay.addWidget(inp)
+
+    cb.stateChanged.connect(lambda state: inp.setVisible(bool(state)))
+
+    return container
+
+
 def page_title(text: str) -> QLabel:
     l = QLabel(text)
     l.setFont(mkfont(17, QFont.Bold))
@@ -785,7 +930,6 @@ def page_title(text: str) -> QLabel:
     return l
 
 
-# ── Pages ──────────────────────────────────────────────────────────────────────
 def visual_page() -> QWidget:
     inner = QWidget()
     inner.setStyleSheet("background:transparent;")
@@ -800,26 +944,26 @@ def visual_page() -> QWidget:
     lay.addWidget(section_lbl("ESP"))
     lay.addSpacing(4)
     for t in ["Player ESP", "Box ESP", "Skeleton ESP", "Head Dot",
-              "Health Bar", "Distance", "Name Tags", "Snaplines"]:
+              "Health Bar", "Distance", "Name Tags"]:
         lay.addWidget(toggle_row(t))
 
     lay.addSpacing(14)
-    lay.addWidget(section_lbl("RADAR"))
+    lay.addWidget(section_lbl("CHAMS"))
     lay.addSpacing(4)
-    for t in ["Minimap Radar", "Show Enemies", "Show Teammates"]:
+    for t in ["Visible Chams", "Hidden Chams", "Team Chams"]:
         lay.addWidget(toggle_row(t))
 
     lay.addSpacing(14)
     lay.addWidget(section_lbl("MISC"))
     lay.addSpacing(4)
-    for t in ["Crosshair", "FOV Circle", "Spectator List", "Watermark"]:
+    for t in ["Crosshair", "FOV Circle"]:
         lay.addWidget(toggle_row(t))
 
     lay.addStretch()
     return scrolled(inner)
 
 
-def movement_page() -> QWidget:
+def aimbot_page() -> QWidget:
     inner = QWidget()
     inner.setStyleSheet("background:transparent;")
     lay = QVBoxLayout(inner)
@@ -827,31 +971,105 @@ def movement_page() -> QWidget:
     lay.setSpacing(3)
     lay.setAlignment(Qt.AlignTop)
 
-    lay.addWidget(page_title("Movement"))
+    lay.addWidget(page_title("Aimbot"))
     lay.addSpacing(14)
-    lay.addWidget(section_lbl("MOVEMENT"))
+
+    lay.addWidget(section_lbl("AIMBOT"))
     lay.addSpacing(4)
-    for t in ["Bunny Hop", "Auto Strafe", "Slide Hack",
-              "No Fall Damage", "Fast Ladder", "No Clip", "Speed Hack"]:
+    lay.addWidget(toggle_row("Enable Aimbot"))
+    lay.addWidget(toggle_row("Silent Aim"))
+    lay.addWidget(toggle_row("Aim Assist"))
+    lay.addWidget(toggle_row("Visible Only"))
+    lay.addWidget(toggle_row("Team Check"))
+    lay.addWidget(toggle_row("Auto Fire"))
+    lay.addWidget(slider_row("Smoothness", 1, 100, 50, "%"))
+    lay.addWidget(slider_row("FOV", 10, 360, 90, "°"))
+
+    lay.addSpacing(14)
+    lay.addWidget(section_lbl("TARGETING"))
+    lay.addSpacing(4)
+    for t in ["Head", "Neck", "Torso", "Closest to Crosshair"]:
         lay.addWidget(toggle_row(t))
+
+    lay.addSpacing(14)
+    lay.addWidget(section_lbl("TRIGGERBOT"))
+    lay.addSpacing(4)
+    lay.addWidget(toggle_row("Enable Triggerbot"))
+    lay.addWidget(toggle_row("Visible Only"))
+    lay.addWidget(toggle_row("Team Check"))
+    lay.addWidget(slider_row("Delay", 0, 500, 100, "ms"))
 
     lay.addStretch()
     return scrolled(inner)
 
 
-def placeholder_page(title: str) -> QWidget:
+def player_page() -> QWidget:
     inner = QWidget()
     inner.setStyleSheet("background:transparent;")
     lay = QVBoxLayout(inner)
     lay.setContentsMargins(26, 24, 26, 24)
+    lay.setSpacing(3)
     lay.setAlignment(Qt.AlignTop)
 
-    lay.addWidget(page_title(title))
-    lay.addSpacing(16)
-    ph = lbl("— Coming soon —", 13, C["muted"])
-    lay.addWidget(ph)
+    lay.addWidget(page_title("Player"))
+    lay.addSpacing(14)
+
+    lay.addWidget(section_lbl("MOVEMENT"))
+    lay.addSpacing(4)
+    lay.addWidget(toggle_row("No Clip"))
+    lay.addWidget(toggle_row("Infinite Jump"))
+    lay.addWidget(toggle_row("Fly Hack"))
+    lay.addWidget(slider_row("Fly Speed", 1, 200, 16, " wu/s"))
+    lay.addWidget(toggle_row("No Fall Damage"))
+    lay.addWidget(toggle_row("Low Gravity"))
+    lay.addWidget(slider_row("Walk Speed", 1, 500, 16, " wu/s"))
+
+    lay.addSpacing(14)
+    lay.addWidget(section_lbl("COMBAT"))
+    lay.addSpacing(4)
+    lay.addWidget(toggle_row("God Mode"))
+    lay.addWidget(toggle_row("Infinite Ammo"))
+    lay.addWidget(toggle_row("No Reload"))
+    lay.addWidget(toggle_row("No Spread"))
+    lay.addWidget(toggle_row("No Recoil"))
+    lay.addWidget(slider_row("Rapid Fire Rate", 1, 30, 10, "x"))
+
+    lay.addSpacing(14)
+    lay.addWidget(section_lbl("UTILITY"))
+    lay.addSpacing(4)
+    lay.addWidget(toggle_row("Auto Rejoin"))
+    lay.addWidget(toggle_row("Anti AFK"))
+    lay.addWidget(textbox_row("Teleport to Player", "Enter username…"))
+
     lay.addStretch()
-    return inner
+    return scrolled(inner)
+
+
+def misc_page() -> QWidget:
+    inner = QWidget()
+    inner.setStyleSheet("background:transparent;")
+    lay = QVBoxLayout(inner)
+    lay.setContentsMargins(26, 24, 26, 24)
+    lay.setSpacing(3)
+    lay.setAlignment(Qt.AlignTop)
+
+    lay.addWidget(page_title("Misc"))
+    lay.addSpacing(14)
+
+    lay.addWidget(section_lbl("CHAT"))
+    lay.addSpacing(4)
+    lay.addWidget(toggle_row("Anti Chat Filter"))
+    lay.addWidget(textbox_row("Chat Spam", "Message to spam…"))
+
+    lay.addSpacing(14)
+    lay.addWidget(section_lbl("PLAYER"))
+    lay.addSpacing(4)
+    lay.addWidget(toggle_row("Invisible (Client Side)"))
+    lay.addWidget(toggle_row("Disable Animations"))
+    lay.addWidget(slider_row("Fake Ping", 0, 1000, 0, "ms"))
+
+    lay.addStretch()
+    return scrolled(inner)
 
 
 def settings_page(win_ref) -> QWidget:
@@ -920,7 +1138,6 @@ def settings_page(win_ref) -> QWidget:
     lay.addWidget(section_lbl("AUTO LOGIN"))
     lay.addSpacing(8)
 
-    # Auto login toggle row
     autologin_row = QHBoxLayout()
     al_lbl = lbl("Save key & auto login on startup", 13, C["sub"])
     autologin_row.addWidget(al_lbl)
@@ -942,7 +1159,7 @@ def settings_page(win_ref) -> QWidget:
         s = load_settings()
         s["auto_login"] = bool(state)
         if not bool(state):
-            s["saved_key"] = ""   # clear saved key when disabling
+            s["saved_key"] = ""  
         save_settings(s)
 
     al_cb.stateChanged.connect(on_autologin_toggle)
@@ -982,7 +1199,6 @@ def settings_page(win_ref) -> QWidget:
     return inner
 
 
-# ── Main UI ────────────────────────────────────────────────────────────────────
 class MainUI(QWidget):
     def __init__(self, key_info: dict, win_ref, parent=None):
         super().__init__(parent)
@@ -1000,10 +1216,9 @@ class MainUI(QWidget):
 
         pages = [
             visual_page(),
-            movement_page(),
-            placeholder_page("Overpowered"),
-            placeholder_page("Skins"),
-            placeholder_page("Lua"),
+            aimbot_page(),
+            player_page(),
+            misc_page(),
             settings_page(win_ref),
         ]
         for pg in pages:
@@ -1016,9 +1231,8 @@ class MainUI(QWidget):
         self.content.setCurrentIndex(i)
 
 
-# ── Main Window ────────────────────────────────────────────────────────────────
 class PassionWindow(QWidget):
-    _toggle_signal = pyqtSignal()   # cross-thread safe toggle
+    _toggle_signal = pyqtSignal()
 
     def __init__(self):
         super().__init__()
@@ -1034,7 +1248,6 @@ class PassionWindow(QWidget):
         screen = QApplication.primaryScreen().geometry()
         self.move((screen.width() - WIN_W) // 2, (screen.height() - WIN_H) // 2)
 
-        # Stack
         self.stack = QStackedWidget(self)
         self.stack.setGeometry(0, 0, WIN_W, WIN_H)
         self.stack.setStyleSheet("background:transparent;")
@@ -1045,7 +1258,6 @@ class PassionWindow(QWidget):
         self.stack.addWidget(self.auth)
         self._main = None
 
-        # Close button (×) top-right
         self._close_btn = QPushButton("×", self)
         self._close_btn.setFixedSize(28, 28)
         self._close_btn.move(WIN_W - 36, 8)
@@ -1068,19 +1280,16 @@ class PassionWindow(QWidget):
                 color: #ff4444;
             }
         """)
-        self._close_btn.clicked.connect(self.close)
+        self._close_btn.clicked.connect(self._quit)
         self._close_btn.raise_()
 
-        # Connect toggle signal (so hotkey thread can safely call show/hide)
         self._toggle_signal.connect(self._toggle)
 
-        # Start native hotkey thread
         self._hotkey = GlobalHotkey()
         self._hotkey.set_key(self.settings.get("toggle_key", Qt.Key_F5))
         self._hotkey.triggered.connect(self._toggle)
         self._hotkey.start()
 
-    # ── Paint: full rounded window + glow border ──────────────────────────────
     def paintEvent(self, event):
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
@@ -1094,20 +1303,16 @@ class PassionWindow(QWidget):
         path = QPainterPath()
         path.addRoundedRect(1.0, 1.0, W - 2.0, H - 2.0, R, R)
 
-        # Fill
         p.fillPath(path, QBrush(QColor(C["bg"])))
 
-        # Outer red glow
         p.setPen(QPen(QColor(180, 28, 28, 55), 3.5))
         p.drawPath(path)
 
-        # Mid border
         mid = QPainterPath()
         mid.addRoundedRect(1.5, 1.5, W - 3.0, H - 3.0, R - 0.5, R - 0.5)
         p.setPen(QPen(QColor(C["border"]), 1.0))
         p.drawPath(mid)
 
-        # Inner top highlight
         hi = QPainterPath()
         hi.addRoundedRect(2.5, 2.5, W - 5.0, H - 5.0, R - 1.5, R - 1.5)
         p.setPen(QPen(QColor(255, 255, 255, 8), 1.0))
@@ -1140,7 +1345,6 @@ class PassionWindow(QWidget):
             self.activateWindow()
             self.raise_()
 
-    # Fallback: also catch F5 via keyPressEvent when window is focused
     def keyPressEvent(self, event):
         toggle = self.settings.get("toggle_key", Qt.Key_F5)
         if event.key() == toggle:
@@ -1159,12 +1363,16 @@ class PassionWindow(QWidget):
     def mouseReleaseEvent(self, e):
         self._dragging = False
 
+    def _quit(self):
+        self._hotkey.stop()
+        QApplication.quit()
+
     def closeEvent(self, e):
         self._hotkey.stop()
         super().closeEvent(e)
 
 
-# ── Entry ──────────────────────────────────────────────────────────────────────
+
 def main():
     app = QApplication(sys.argv)
     app.setStyle("Fusion")

@@ -1,84 +1,46 @@
 import { NextRequest, NextResponse } from 'next/server'
-import bcrypt from 'bcryptjs'
 import sql from '@/lib/db'
-import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3'
-import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
+import bcrypt from 'bcryptjs'
 
-// Rate limit: 5 attempts per IP per 10 min
-const attempts = new Map<string, { count: number; reset: number }>()
-
-const r2 = new S3Client({
-  region: 'auto',
-  endpoint: `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
-  credentials: {
-    accessKeyId:     process.env.R2_ACCESS_KEY_ID!,
-    secretAccessKey: process.env.R2_SECRET_ACCESS_KEY!,
-  },
-})
-
+// POST /api/download — validates key and redirects to download URL
+// Does NOT write to key_logs. Logging only happens via /api/validate (program runtime).
 export async function POST(req: NextRequest) {
-  const ip  = req.headers.get('x-forwarded-for')?.split(',')[0] ?? 'unknown'
-  const now = Date.now()
+  let key: string
+  const contentType = req.headers.get('content-type') ?? ''
 
-  const entry = attempts.get(ip)
-  if (entry) {
-    if (now < entry.reset && entry.count >= 5)
-      return NextResponse.json({ error: 'Too many attempts. Try again in 10 minutes.' }, { status: 429 })
-    if (now >= entry.reset) attempts.delete(ip)
+  if (contentType.includes('application/json')) {
+    const body = await req.json().catch(() => ({}))
+    key = body.key
+  } else {
+    const form = await req.formData().catch(() => null)
+    key = form?.get('key') as string
   }
 
-  let body: { key?: string }
-  try {
-    const contentType = req.headers.get('content-type') ?? ''
-    if (contentType.includes('application/json')) {
-      body = await req.json()
-    } else {
-      const form = await req.formData()
-      body = { key: form.get('key')?.toString() }
-    }
-  } catch {
-    return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
-  }
+  if (!key) return NextResponse.json({ error: 'No key provided' }, { status: 400 })
 
-  const { key } = body
-  if (!key?.trim())
-    return NextResponse.json({ error: 'Please enter your license key.' }, { status: 400 })
-
-  // Fetch active keys and bcrypt compare
   const rows = await sql`
-    SELECT id, key_hash, status, expires_at, max_uses, uses
-    FROM license_keys WHERE status = 'active'`
+    SELECT id, key_hash, status, hwid, uses, max_uses, expires_at
+    FROM license_keys
+    WHERE key_value = ${key.trim()}
+    LIMIT 1
+  ` as { id: number; key_hash: string; status: string; hwid: string | null; uses: number; max_uses: number | null; expires_at: string | null }[]
 
-  let match: typeof rows[0] | null = null
-  for (const row of rows) {
-    if (await bcrypt.compare(key.trim(), row.key_hash)) { match = row; break }
-  }
+  const k = rows[0]
+  if (!k) return NextResponse.json({ error: 'Invalid key' }, { status: 403 })
 
-  if (!match) {
-    const cur = attempts.get(ip) ?? { count: 0, reset: now + 10 * 60 * 1000 }
-    cur.count++
-    attempts.set(ip, cur)
-    return NextResponse.json({ error: 'Invalid license key.' }, { status: 401 })
-  }
+  const valid = await bcrypt.compare(key.trim(), k.key_hash)
+  if (!valid) return NextResponse.json({ error: 'Invalid key' }, { status: 403 })
 
-  // Expiry check
-  if (match.expires_at && new Date(match.expires_at) < new Date())
-    return NextResponse.json({ error: 'This key has expired.' }, { status: 403 })
+  if (k.status !== 'active') return NextResponse.json({ error: `Key is ${k.status}` }, { status: 403 })
+  if (k.expires_at && new Date(k.expires_at) < new Date()) return NextResponse.json({ error: 'Key expired' }, { status: 403 })
+  if (k.max_uses !== null && k.uses >= k.max_uses) return NextResponse.json({ error: 'Use limit reached' }, { status: 403 })
 
-  attempts.delete(ip)
+  const setting = await sql`SELECT value FROM app_settings WHERE key = 'download_url' LIMIT 1` as { value: string }[]
+  const url = setting[0]?.value
+  if (!url) return NextResponse.json({ error: 'No download configured' }, { status: 500 })
 
-  // Log the download
-  await sql`
-    INSERT INTO key_logs (key_id, key_value, hwid, ip, success, reason)
-    VALUES (${match.id}, ${key.trim()}, NULL, ${ip}, true, 'download')`
+  // Update use count — no log entry written
+  await sql`UPDATE license_keys SET uses = uses + 1, last_used = NOW() WHERE id = ${k.id}`
 
-  // Generate a presigned URL — expires in 60 seconds
-  const command = new GetObjectCommand({
-    Bucket: process.env.R2_BUCKET_NAME!,
-    Key:    process.env.R2_FILE_KEY!,
-  })
-
-  const presignedUrl = await getSignedUrl(r2, command, { expiresIn: 60 })
-
-  return NextResponse.redirect(presignedUrl, { status: 302 })
+  return NextResponse.redirect(url, 302)
 }

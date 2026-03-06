@@ -9,7 +9,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
   return (
     <div className="flex h-screen overflow-hidden" style={{ background: '#0f0b0c' }}>
       <Sidebar username={session.username} />
-      <main className="flex-1 overflow-y-auto">
+      {/* pt-14 on mobile for the fixed top bar */}
+      <main className="flex-1 overflow-y-auto pt-14 lg:pt-0">
         {children}
       </main>
     </div>

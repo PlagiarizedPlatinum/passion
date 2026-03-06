@@ -4,9 +4,7 @@ import './globals.css'
 export const metadata: Metadata = {
   title: 'Passion',
   description: 'Passion Admin Dashboard',
-  icons: {
-    icon: '/logo.png',
-  },
+  icons: { icon: '/logo.png' },
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS license_keys (
   last_used   TIMESTAMPTZ
 );
 
--- Key validation log
+-- Key validation log (written only when the program calls /api/validate, NOT on download)
 CREATE TABLE IF NOT EXISTS key_logs (
   id         SERIAL PRIMARY KEY,
   key_id     INT REFERENCES license_keys(id) ON DELETE SET NULL,
@@ -41,7 +41,7 @@ CREATE TABLE IF NOT EXISTS app_settings (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Seed default download URL (update this via the dashboard)
+-- Seed default download URL (update this via the dashboard settings)
 INSERT INTO app_settings (key, value)
 VALUES ('download_url', 'https://github.com/YOUR_USERNAME/YOUR_REPO/releases/download/latest/passion.exe')
 ON CONFLICT (key) DO NOTHING;

@@ -3,7 +3,7 @@
 ## Architecture
 
 ```
-passion_client.py   ← PyQt5 app (distribute to users)
+passion_client.exe   ← PyQt5 app (distribute to users)
 passion-web/        ← Next.js dashboard (deploy to Vercel)
 schema.sql          ← Run once in Neon SQL editor
 ```
